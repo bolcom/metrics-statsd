@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-package com.bol.codahale.metrics.reporting;
+package com.bol.dropwizard.metrics.reporting;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -27,10 +27,10 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import com.bol.dropwizard.metrics.reporting.statsd.StatsD;
 import org.junit.Test;
 import org.mockito.InOrder;
 
-import com.bol.codahale.metrics.reporting.statsd.StatsD;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -43,7 +43,7 @@ import com.codahale.metrics.Timer;
 public class StatsDReporterTest {
     StatsD statsD = mock(StatsD.class);
     MetricRegistry registry = mock(MetricRegistry.class);
-    String[] tags = {"my", "tags"}; 
+    String[] tags = {"my", "tags"};
     StatsDReporter reporter = StatsDReporter
             .forRegistry(registry)
             .prefixedWith("prefix")
@@ -141,7 +141,7 @@ public class StatsDReporterTest {
         final InOrder inOrder = inOrder(statsD);
         inOrder.verify(statsD).connect();
         inOrder.verify(statsD).send("prefix.gauge", "1", tags);
-        inOrder.verify(statsD).close();        
+        inOrder.verify(statsD).close();
     }
 
     @Test
@@ -152,7 +152,7 @@ public class StatsDReporterTest {
         final InOrder inOrder = inOrder(statsD);
         inOrder.verify(statsD).connect();
         inOrder.verify(statsD).send("prefix.gauge", "1.10", tags);
-        inOrder.verify(statsD).close();        
+        inOrder.verify(statsD).close();
     }
 
     @Test

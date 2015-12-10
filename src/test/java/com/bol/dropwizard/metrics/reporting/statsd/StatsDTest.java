@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-package com.bol.codahale.metrics.reporting.statsd;
+package com.bol.dropwizard.metrics.reporting.statsd;
 
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
@@ -113,12 +113,12 @@ public class StatsDTest {
 
         assertThat(addressCaptor.getValue()).isEqualTo(address);
     }
-    
+
     @Test
     public void testTags() throws Exception {
         statsD.connect();
         statsD.send("name", "value", new String[] {"my", "tags"});
-        
+
         assertThat(new String(bytesCaptor.getValue())).isEqualTo(
                 "name:value|g|#my,tags");
     }

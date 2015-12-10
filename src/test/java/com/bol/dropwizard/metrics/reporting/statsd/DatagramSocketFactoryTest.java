@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-package com.bol.codahale.metrics.reporting.statsd;
+package com.bol.dropwizard.metrics.reporting.statsd;
 
 import org.junit.Test;
 

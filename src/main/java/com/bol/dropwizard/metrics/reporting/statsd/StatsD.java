@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-package com.bol.codahale.metrics.reporting.statsd;
+package com.bol.dropwizard.metrics.reporting.statsd;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +48,7 @@ public class StatsD implements Closeable {
     /**
      * Creates a new client which connects to the given address using the
      * default {@link DatagramSocketFactory}.
-     * 
+     *
      * @param host
      *            the hostname of the StatsD server.
      * @param port
@@ -61,7 +61,7 @@ public class StatsD implements Closeable {
     /**
      * Creates a new client which connects to the given address and socket
      * factory.
-     * 
+     *
      * @param address
      *            the address of the StatsD server
      * @param socketFactory
@@ -76,7 +76,7 @@ public class StatsD implements Closeable {
      * Resolves the address hostname if present.
      * <p/>
      * Creates a datagram socket through the factory.
-     * 
+     *
      * @throws IllegalStateException
      *             if the client is already connected
      * @throws IOException
@@ -96,7 +96,7 @@ public class StatsD implements Closeable {
 
     /**
      * Sends the given measurement to the server. Logs exceptions.
-     * 
+     *
      * @param name
      *            the name of the metric
      * @param value
@@ -124,7 +124,7 @@ public class StatsD implements Closeable {
 
     /**
      * Returns the number of failed writes to the server.
-     * 
+     *
      * @return the number of failed writes to the server
      */
     public int getFailures() {

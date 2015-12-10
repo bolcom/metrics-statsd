@@ -13,9 +13,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-package com.bol.codahale.metrics.reporting;
+package com.bol.dropwizard.metrics.reporting;
 
-import com.bol.codahale.metrics.reporting.statsd.StatsD;
+import com.bol.dropwizard.metrics.reporting.statsd.StatsD;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A reporter which publishes metric values to a StatsD server.
- * 
+ *
  * @see <a href="https://github.com/etsy/statsd">StatsD</a>
  */
 @NotThreadSafe
@@ -65,7 +65,7 @@ public class StatsDReporter extends ScheduledReporter {
 
     /**
      * Returns a new {@link Builder} for {@link StatsDReporter}.
-     * 
+     *
      * @param registry
      *            the registry to report
      * @return a {@link Builder} instance for a {@link StatsDReporter}
@@ -99,7 +99,7 @@ public class StatsDReporter extends ScheduledReporter {
 
         /**
          * Prefix all metric names with the given string.
-         * 
+         *
          * @param prefix
          *            the prefix for all metric names
          * @return {@code this}
@@ -108,10 +108,10 @@ public class StatsDReporter extends ScheduledReporter {
             this.prefix = prefix;
             return this;
         }
-        
+
         /**
          * Add all given tags to all metrics
-         * @param tags the tags for all metrics        
+         * @param tags the tags for all metrics
          * @return {@code this}
          */
         public Builder withTags(@Nullable final String... tags) {
@@ -121,7 +121,7 @@ public class StatsDReporter extends ScheduledReporter {
 
         /**
          * Convert rates to the given time unit.
-         * 
+         *
          * @param rateUnit
          *            a unit of time
          * @return {@code this}
@@ -133,7 +133,7 @@ public class StatsDReporter extends ScheduledReporter {
 
         /**
          * Convert durations to the given time unit.
-         * 
+         *
          * @param durationUnit
          *            a unit of time
          * @return {@code this}
@@ -145,7 +145,7 @@ public class StatsDReporter extends ScheduledReporter {
 
         /**
          * Only report metrics which match the given filter.
-         * 
+         *
          * @param filter
          *            a {@link MetricFilter}
          * @return {@code this}
@@ -158,7 +158,7 @@ public class StatsDReporter extends ScheduledReporter {
         /**
          * Builds a {@link StatsDReporter} with the given properties, sending
          * metrics to StatsD at the given host and port.
-         * 
+         *
          * @param host
          *            the hostname of the StatsD server.
          * @param port
@@ -172,7 +172,7 @@ public class StatsDReporter extends ScheduledReporter {
         /**
          * Builds a {@link StatsDReporter} with the given properties, sending
          * metrics using the given {@link StatsD} client.
-         * 
+         *
          * @param statsD
          *            a {@link StatsD} client
          * @return a {@link StatsDReporter}
