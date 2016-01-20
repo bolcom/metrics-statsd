@@ -156,6 +156,28 @@ public class StatsDReporterTest {
     }
 
     @Test
+    public void testReportsBooleanTrueValue() throws Exception {
+        reporter.report(map("gauge", gauge(Boolean.TRUE)), this.<Counter> map(),
+            this.<Histogram> map(), this.<Meter> map(), this.<Timer> map());
+
+        final InOrder inOrder = inOrder(statsD);
+        inOrder.verify(statsD).connect();
+        inOrder.verify(statsD).send("prefix.gauge", "1", tags);
+        inOrder.verify(statsD).close();
+    }
+
+    @Test
+    public void testReportsBooleanFalseValue() throws Exception {
+        reporter.report(map("gauge", gauge(Boolean.FALSE)), this.<Counter> map(),
+            this.<Histogram> map(), this.<Meter> map(), this.<Timer> map());
+
+        final InOrder inOrder = inOrder(statsD);
+        inOrder.verify(statsD).connect();
+        inOrder.verify(statsD).send("prefix.gauge", "0", tags);
+        inOrder.verify(statsD).close();
+    }
+
+    @Test
     public void reportsCounters() throws Exception {
         final Counter counter = mock(Counter.class);
         when(counter.getCount()).thenReturn(100L);

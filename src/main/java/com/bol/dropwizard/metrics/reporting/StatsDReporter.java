@@ -296,6 +296,8 @@ public class StatsDReporter extends ScheduledReporter {
             return formatNumber((BigInteger) o);
         } else if (o instanceof BigDecimal) {
             return formatNumber(((BigDecimal) o).doubleValue());
+        } else if (o instanceof Boolean) {
+            return (Boolean) o ? "1" : "0";
         }
         return null;
     }
