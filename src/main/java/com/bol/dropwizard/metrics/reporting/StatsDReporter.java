@@ -16,26 +16,16 @@
 package com.bol.dropwizard.metrics.reporting;
 
 import com.bol.dropwizard.metrics.reporting.statsd.StatsD;
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metered;
-import com.codahale.metrics.MetricFilter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.ScheduledReporter;
-import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
-
+import com.codahale.metrics.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
@@ -53,12 +43,15 @@ public class StatsDReporter extends ScheduledReporter {
     private final StatsD statsD;
     private final String prefix;
     private final String[] tags;
+    private final boolean skipUnchangedMetrics;
+    private final Map<String, Long> metricCounters = new HashMap<String, Long>();
 
     private StatsDReporter(final MetricRegistry registry, final StatsD statsD,
-            final String prefix, final String[] tags, final TimeUnit rateUnit,
+            final String prefix, boolean skipUnchangedMetrics, final String[] tags, final TimeUnit rateUnit,
             final TimeUnit durationUnit, final MetricFilter filter) {
         super(registry, "statsd-reporter", filter, rateUnit, durationUnit);
         this.statsD = statsD;
+        this.skipUnchangedMetrics = skipUnchangedMetrics;
         this.prefix = prefix;
         this.tags = tags;
     }
@@ -83,6 +76,7 @@ public class StatsDReporter extends ScheduledReporter {
     public static final class Builder {
         private final MetricRegistry registry;
         private String prefix;
+        private boolean skipUnchangedMetrics;
         private String[] tags;
         private TimeUnit rateUnit;
         private TimeUnit durationUnit;
@@ -92,6 +86,7 @@ public class StatsDReporter extends ScheduledReporter {
             this.registry = registry;
             this.prefix = null;
             this.tags = null;
+            this.skipUnchangedMetrics = true;
             this.rateUnit = TimeUnit.SECONDS;
             this.durationUnit = TimeUnit.MILLISECONDS;
             this.filter = MetricFilter.ALL;
@@ -156,6 +151,34 @@ public class StatsDReporter extends ScheduledReporter {
         }
 
         /**
+         * If unchanged metrics, since the last report, are to be skipped from being reported to StatsD.
+         * <p>
+         * This will prevent Metrics from showing and old value in the StatsD backend (often Graphite) when nothing actually
+         * changed.
+         * <p>
+         * If true then skipping is applied for:
+         * <ul>
+         *     <li>Timer</li>
+         *     <li>Metered</li>
+         *     <li>Histogram</li>
+         * </ul>
+         * <p>
+         * This reporter figures out which metrics should be skipped by keeping track of the count of this metrics.
+         * If count didn't change, and they will increase if a new value is recorded, then it won't send the metrics to StatsD.
+         * <p>
+         * The other metrics, gauge and counter, can't be skipped as we don't have a reliable way to detect if the value should be skipped.
+         * <p>
+         * Default: true
+         *
+         * @param skipUnchangedMetrics If unchanged metrics are to be skipped from being reported to StatsD
+         * @return {@code this}
+         */
+        public Builder skipUnchangedMetrics(final boolean skipUnchangedMetrics) {
+            this.skipUnchangedMetrics = skipUnchangedMetrics;
+            return this;
+        }
+
+        /**
          * Builds a {@link StatsDReporter} with the given properties, sending
          * metrics to StatsD at the given host and port.
          *
@@ -178,8 +201,7 @@ public class StatsDReporter extends ScheduledReporter {
          * @return a {@link StatsDReporter}
          */
         public StatsDReporter build(final StatsD statsD) {
-            return new StatsDReporter(registry, statsD, prefix, tags, rateUnit,
-                    durationUnit, filter);
+            return new StatsDReporter(registry, statsD, prefix, skipUnchangedMetrics, tags, rateUnit, durationUnit, filter);
         }
     }
 
@@ -225,24 +247,42 @@ public class StatsDReporter extends ScheduledReporter {
         }
     }
 
+    private boolean metricChanged(String metricName, long currentCount) {
+        if(!skipUnchangedMetrics) {
+            return true;
+        }
+        Long previousCount = metricCounters.get(metricName);
+        metricCounters.put(metricName, currentCount);
+
+        return previousCount == null || previousCount != currentCount;
+    }
+
     private void reportTimer(final String name, final Timer timer) {
         final Snapshot snapshot = timer.getSnapshot();
 
-        statsD.send(prefix(name, "max"), formatNumber(convertDuration(snapshot.getMax())), tags);
-        statsD.send(prefix(name, "mean"), formatNumber(convertDuration(snapshot.getMean())), tags);
-        statsD.send(prefix(name, "min"), formatNumber(convertDuration(snapshot.getMin())), tags);
-        statsD.send(prefix(name, "stddev"), formatNumber(convertDuration(snapshot.getStdDev())), tags);
-        statsD.send(prefix(name, "p50"), formatNumber(convertDuration(snapshot.getMedian())), tags);
-        statsD.send(prefix(name, "p75"), formatNumber(convertDuration(snapshot.get75thPercentile())), tags);
-        statsD.send(prefix(name, "p95"), formatNumber(convertDuration(snapshot.get95thPercentile())), tags);
-        statsD.send(prefix(name, "p98"), formatNumber(convertDuration(snapshot.get98thPercentile())), tags);
-        statsD.send(prefix(name, "p99"), formatNumber(convertDuration(snapshot.get99thPercentile())), tags);
-        statsD.send(prefix(name, "p999"), formatNumber(convertDuration(snapshot.get999thPercentile())), tags);
+        if(metricChanged(name, timer.getCount())) {
+            statsD.send(prefix(name, "max"), formatNumber(convertDuration(snapshot.getMax())), tags);
+            statsD.send(prefix(name, "mean"), formatNumber(convertDuration(snapshot.getMean())), tags);
+            statsD.send(prefix(name, "min"), formatNumber(convertDuration(snapshot.getMin())), tags);
+            statsD.send(prefix(name, "stddev"), formatNumber(convertDuration(snapshot.getStdDev())), tags);
+            statsD.send(prefix(name, "p50"), formatNumber(convertDuration(snapshot.getMedian())), tags);
+            statsD.send(prefix(name, "p75"), formatNumber(convertDuration(snapshot.get75thPercentile())), tags);
+            statsD.send(prefix(name, "p95"), formatNumber(convertDuration(snapshot.get95thPercentile())), tags);
+            statsD.send(prefix(name, "p98"), formatNumber(convertDuration(snapshot.get98thPercentile())), tags);
+            statsD.send(prefix(name, "p99"), formatNumber(convertDuration(snapshot.get99thPercentile())), tags);
+            statsD.send(prefix(name, "p999"), formatNumber(convertDuration(snapshot.get999thPercentile())), tags);
 
-        reportMetered(name, timer);
+            reportMeteredChecked(name, timer);
+        }
     }
 
     private void reportMetered(final String name, final Metered meter) {
+        if(metricChanged(name, meter.getCount())) {
+            reportMeteredChecked(name, meter);
+        }
+    }
+
+    private void reportMeteredChecked(final String name, final Metered meter) {
         statsD.send(prefix(name, "count"), formatNumber(meter.getCount()), tags);
         statsD.send(prefix(name, "m1_rate"), formatNumber(convertRate(meter.getOneMinuteRate())), tags);
         statsD.send(prefix(name, "m5_rate"), formatNumber(convertRate(meter.getFiveMinuteRate())), tags);
@@ -252,17 +292,21 @@ public class StatsDReporter extends ScheduledReporter {
 
     private void reportHistogram(final String name, final Histogram histogram) {
         final Snapshot snapshot = histogram.getSnapshot();
-        statsD.send(prefix(name, "count"), formatNumber(histogram.getCount()), tags);
-        statsD.send(prefix(name, "max"), formatNumber(snapshot.getMax()), tags);
-        statsD.send(prefix(name, "mean"), formatNumber(snapshot.getMean()), tags);
-        statsD.send(prefix(name, "min"), formatNumber(snapshot.getMin()), tags);
-        statsD.send(prefix(name, "stddev"), formatNumber(snapshot.getStdDev()), tags);
-        statsD.send(prefix(name, "p50"), formatNumber(snapshot.getMedian()), tags);
-        statsD.send(prefix(name, "p75"), formatNumber(snapshot.get75thPercentile()), tags);
-        statsD.send(prefix(name, "p95"), formatNumber(snapshot.get95thPercentile()), tags);
-        statsD.send(prefix(name, "p98"), formatNumber(snapshot.get98thPercentile()), tags);
-        statsD.send(prefix(name, "p99"), formatNumber(snapshot.get99thPercentile()), tags);
-        statsD.send(prefix(name, "p999"), formatNumber(snapshot.get999thPercentile()), tags);
+        long count = histogram.getCount();
+
+        if(metricChanged(name, count)) {
+            statsD.send(prefix(name, "count"), formatNumber(count), tags);
+            statsD.send(prefix(name, "max"), formatNumber(snapshot.getMax()), tags);
+            statsD.send(prefix(name, "mean"), formatNumber(snapshot.getMean()), tags);
+            statsD.send(prefix(name, "min"), formatNumber(snapshot.getMin()), tags);
+            statsD.send(prefix(name, "stddev"), formatNumber(snapshot.getStdDev()), tags);
+            statsD.send(prefix(name, "p50"), formatNumber(snapshot.getMedian()), tags);
+            statsD.send(prefix(name, "p75"), formatNumber(snapshot.get75thPercentile()), tags);
+            statsD.send(prefix(name, "p95"), formatNumber(snapshot.get95thPercentile()), tags);
+            statsD.send(prefix(name, "p98"), formatNumber(snapshot.get98thPercentile()), tags);
+            statsD.send(prefix(name, "p99"), formatNumber(snapshot.get99thPercentile()), tags);
+            statsD.send(prefix(name, "p999"), formatNumber(snapshot.get999thPercentile()), tags);
+        }
     }
 
     private void reportCounter(final String name, final Counter counter) {

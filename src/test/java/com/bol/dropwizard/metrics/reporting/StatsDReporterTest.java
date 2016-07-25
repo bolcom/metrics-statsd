@@ -15,11 +15,10 @@
  */
 package com.bol.dropwizard.metrics.reporting;
 
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import com.bol.dropwizard.metrics.reporting.statsd.StatsD;
+import com.codahale.metrics.*;
+import org.junit.Test;
+import org.mockito.InOrder;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -27,30 +26,20 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-import com.bol.dropwizard.metrics.reporting.statsd.StatsD;
-import org.junit.Test;
-import org.mockito.InOrder;
-
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricFilter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
+import static org.mockito.Mockito.*;
 
 public class StatsDReporterTest {
     StatsD statsD = mock(StatsD.class);
     MetricRegistry registry = mock(MetricRegistry.class);
     String[] tags = {"my", "tags"};
-    StatsDReporter reporter = StatsDReporter
+    StatsDReporter.Builder reporterBuilder = StatsDReporter
             .forRegistry(registry)
             .prefixedWith("prefix")
             .withTags(tags)
             .convertRatesTo(TimeUnit.SECONDS)
-            .convertDurationsTo(TimeUnit.MILLISECONDS).filter(MetricFilter.ALL)
-            .build(statsD);
+            .convertDurationsTo(TimeUnit.MILLISECONDS).filter(MetricFilter.ALL);
+
+    StatsDReporter reporter = reporterBuilder.build(statsD);
 
     @SuppressWarnings("rawtypes")
     // Metrics library specifies the raw Gauge type unfortunately
@@ -233,6 +222,42 @@ public class StatsDReporterTest {
     }
 
     @Test
+    public void dontReportUnchangedHistogramsIfSkippingUnchangeMetric() throws Exception {
+        final Histogram histogram = mock(Histogram.class);
+        when(histogram.getCount()).thenReturn(1L);
+        when(histogram.getSnapshot()).thenReturn(mock(Snapshot.class));
+
+        for(int i = 0; i < 2; i++) {
+            reporter.report(emptyGaugeMap, this.<Counter>map(),
+                this.<Histogram>map("histogram", histogram),
+                this.<Meter>map(), this.<Timer>map());
+        }
+
+        verify(statsD, times(2)).connect();
+        verify(statsD, times(1)).send("prefix.histogram.count", "1", tags);
+        verify(statsD, times(2)).close();
+    }
+
+    @Test
+    public void doReportUnchangedHistogramsIfSkippingUnchangeMetric() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+
+        final Histogram histogram = mock(Histogram.class);
+        when(histogram.getCount()).thenReturn(1L);
+        when(histogram.getSnapshot()).thenReturn(mock(Snapshot.class));
+
+        for(int i = 0; i < 2; i++) {
+            reporter.report(emptyGaugeMap, this.<Counter>map(),
+                this.<Histogram>map("histogram", histogram),
+                this.<Meter>map(), this.<Timer>map());
+        }
+
+        verify(statsD, times(2)).connect();
+        verify(statsD, times(2)).send("prefix.histogram.count", "1", tags);
+        verify(statsD, times(2)).close();
+    }
+
+    @Test
     public void reportsMeters() throws Exception {
         final Meter meter = mock(Meter.class);
         when(meter.getCount()).thenReturn(1L);
@@ -253,6 +278,42 @@ public class StatsDReporterTest {
         verify(statsD).send("prefix.meter.m15_rate", "4.00", tags);
         inOrder.verify(statsD).send("prefix.meter.mean_rate", "5.00", tags);
         inOrder.verify(statsD).close();
+
+    }
+
+    @Test
+    public void dontReportUnchangedMetersIfSkippingUnchangeMetrics() throws Exception {
+        final Meter meter = mock(Meter.class);
+        when(meter.getCount()).thenReturn(1L);
+
+        for(int i = 0; i < 2; i++) {
+            reporter.report(emptyGaugeMap, this.<Counter>map(),
+                this.<Histogram>map(), this.<Meter>map("meter", meter),
+                this.<Timer>map());
+        }
+
+        verify(statsD, times(2)).connect();
+        verify(statsD, times(1)).send("prefix.meter.count", "1", tags);
+        verify(statsD, times(2)).close();
+
+    }
+
+    @Test
+    public void doReportUnchangedMetersIfNotSkippingUnchangeMetrics() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+
+        final Meter meter = mock(Meter.class);
+        when(meter.getCount()).thenReturn(1L);
+
+        for(int i = 0; i < 2; i++) {
+            reporter.report(emptyGaugeMap, this.<Counter>map(),
+                this.<Histogram>map(), this.<Meter>map("meter", meter),
+                this.<Timer>map());
+        }
+
+        verify(statsD, times(2)).connect();
+        verify(statsD, times(2)).send("prefix.meter.count", "1", tags);
+        verify(statsD, times(2)).close();
 
     }
 
@@ -308,6 +369,38 @@ public class StatsDReporterTest {
         verify(statsD).send("prefix.timer.m15_rate", "5.00", tags);
         inOrder.verify(statsD).send("prefix.timer.mean_rate", "2.00", tags);
         inOrder.verify(statsD).close();
+    }
+
+    @Test
+    public void dontReportUnchangedTimersIfSkippingUnchangeMetrics() throws Exception {
+        final Timer timer = mock(Timer.class);
+        when(timer.getCount()).thenReturn(1L);
+        when(timer.getSnapshot()).thenReturn(mock(Snapshot.class));
+
+        for(int i = 0; i < 2; i++) {
+            reporter.report(emptyGaugeMap, this.<Counter>map(), this.<Histogram>map(), this.<Meter>map(), map("timer", timer));
+        }
+
+        verify(statsD, times(2)).connect();
+        verify(statsD, times(1)).send("prefix.timer.count", "1", tags);
+        verify(statsD, times(2)).close();
+    }
+
+    @Test
+    public void doReportUnchangedTimersIfNotSkippingUnchangeMetrics() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+
+        final Timer timer = mock(Timer.class);
+        when(timer.getCount()).thenReturn(1L);
+        when(timer.getSnapshot()).thenReturn(mock(Snapshot.class));
+
+        for(int i = 0; i < 2; i++) {
+            reporter.report(emptyGaugeMap, this.<Counter>map(), this.<Histogram>map(), this.<Meter>map(), map("timer", timer));
+        }
+
+        verify(statsD, times(2)).connect();
+        verify(statsD, times(2)).send("prefix.timer.count", "1", tags);
+        verify(statsD, times(2)).close();
     }
 
     private <T> SortedMap<String, T> map() {
