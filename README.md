@@ -1,6 +1,9 @@
 # metrics-statsd
 
-Statsd reporter for [dropwizard/metrics] (http://metrics.dropwizard.io/), based on Sean Laurent's [metrics-statsd] (https://github.com/organicveggie/metrics-statsd),  Mike Keesey's [metrics-statsd] (https://github.com/ReadyTalk/metrics-statsd) and  Hannes Heijkenskjöld's [metrics-statsd] (https://github.com/jjagged/metrics-statsd). This version compiles for Java 6.
+Statsd reporter for [dropwizard/metrics](http://metrics.dropwizard.io/), based on 
+Sean Laurent's [metrics-statsd](https://github.com/organicveggie/metrics-statsd),  
+Mike Keesey's [metrics-statsd](https://github.com/ReadyTalk/metrics-statsd) and  
+Hannes Heijkenskjöld's [metrics-statsd] (https://github.com/jjagged/metrics-statsd). This version compiles for Java 6.
 
 Only version 3.x of the Metrics library is supported.
 
@@ -48,14 +51,6 @@ Not in a public repository yet.
 </dependencies>
 ```
 
-# Release 
+# Versions and Changes
 
-## 1.2.0
-
- * Added support for reporting boolean gauges. True is reported as 1 and False is reported as 0. 
-  
-## 1.1.0
-
- * Upgraded to Dropwizard Metrics 3.1.2
- * Changed package to 'com.bol.dropwizard.metrics.reporting'
- * Changed groupId to 'com.bol.dropwizard.metrics
+See the [CHANGELOG.md](./CHANGELOG.md) 

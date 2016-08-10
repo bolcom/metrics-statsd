@@ -11,7 +11,7 @@
     <groupId>com.bol.dropwizard.metrics</groupId>
     <artifactId>metrics-statsd</artifactId>
     <name>Metrics Statsd Support</name>
-    <version>1.3.0-SNAPSHOT</version>
+    <version>1.3.0</version>
     <packaging>jar</packaging>
     <url>https://github.com/bolcom/metrics-statsd/</url>
     <description>Statsd reporter for the Dropwizard Metrics library with support for tags.</description>
