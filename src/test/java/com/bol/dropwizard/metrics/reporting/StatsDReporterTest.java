@@ -223,9 +223,13 @@ public class StatsDReporterTest {
 
     @Test
     public void dontReportUnchangedHistogramsIfSkippingUnchangeMetric() throws Exception {
-        final Histogram histogram = mock(Histogram.class);
+        Histogram histogram = mock(Histogram.class);
+        Snapshot snapshot = mock(Snapshot.class);
+
         when(histogram.getCount()).thenReturn(1L);
-        when(histogram.getSnapshot()).thenReturn(mock(Snapshot.class));
+        when(histogram.getSnapshot()).thenReturn(snapshot);
+
+        when(snapshot.getMax()).thenReturn(123l);
 
         for(int i = 0; i < 2; i++) {
             reporter.report(emptyGaugeMap, this.<Counter>map(),
@@ -234,17 +238,23 @@ public class StatsDReporterTest {
         }
 
         verify(statsD, times(2)).connect();
-        verify(statsD, times(1)).send("prefix.histogram.count", "1", tags);
+        // Count always needs to be send, but the not the other values of the histogram
+        verify(statsD, times(2)).send("prefix.histogram.count", "1", tags);
+        verify(statsD, times(1)).send("prefix.histogram.max", "123", tags);
         verify(statsD, times(2)).close();
     }
 
     @Test
-    public void doReportUnchangedHistogramsIfSkippingUnchangeMetric() throws Exception {
-        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+    public void doReportUnchangedHistogramsIfSkippingUnchangedHistogramMetric() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedHistogramMetrics(false).build(statsD);
 
         final Histogram histogram = mock(Histogram.class);
+        Snapshot snapshot = mock(Snapshot.class);
+
         when(histogram.getCount()).thenReturn(1L);
-        when(histogram.getSnapshot()).thenReturn(mock(Snapshot.class));
+        when(histogram.getSnapshot()).thenReturn(snapshot);
+
+        when(snapshot.getMax()).thenReturn(123l);
 
         for(int i = 0; i < 2; i++) {
             reporter.report(emptyGaugeMap, this.<Counter>map(),
@@ -254,6 +264,7 @@ public class StatsDReporterTest {
 
         verify(statsD, times(2)).connect();
         verify(statsD, times(2)).send("prefix.histogram.count", "1", tags);
+        verify(statsD, times(2)).send("prefix.histogram.max", "123", tags);
         verify(statsD, times(2)).close();
     }
 
@@ -282,26 +293,7 @@ public class StatsDReporterTest {
     }
 
     @Test
-    public void dontReportUnchangedMetersIfSkippingUnchangeMetrics() throws Exception {
-        final Meter meter = mock(Meter.class);
-        when(meter.getCount()).thenReturn(1L);
-
-        for(int i = 0; i < 2; i++) {
-            reporter.report(emptyGaugeMap, this.<Counter>map(),
-                this.<Histogram>map(), this.<Meter>map("meter", meter),
-                this.<Timer>map());
-        }
-
-        verify(statsD, times(2)).connect();
-        verify(statsD, times(1)).send("prefix.meter.count", "1", tags);
-        verify(statsD, times(2)).close();
-
-    }
-
-    @Test
-    public void doReportUnchangedMetersIfNotSkippingUnchangeMetrics() throws Exception {
-        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
-
+    public void alwaysReportUnchangedMetersIfSkippingUnchangeMetrics() throws Exception {
         final Meter meter = mock(Meter.class);
         when(meter.getCount()).thenReturn(1L);
 
@@ -372,27 +364,35 @@ public class StatsDReporterTest {
     }
 
     @Test
-    public void dontReportUnchangedTimersIfSkippingUnchangeMetrics() throws Exception {
-        final Timer timer = mock(Timer.class);
+    public void dontReportUnchangedTimerDurationsIfSkippingUnchangeMetrics() throws Exception {
+        Timer timer = mock(Timer.class);
+        Snapshot snapshot = mock(Snapshot.class);
+
         when(timer.getCount()).thenReturn(1L);
-        when(timer.getSnapshot()).thenReturn(mock(Snapshot.class));
+        when(timer.getSnapshot()).thenReturn(snapshot);
+        when(snapshot.getMax()).thenReturn(123000000l);
 
         for(int i = 0; i < 2; i++) {
             reporter.report(emptyGaugeMap, this.<Counter>map(), this.<Histogram>map(), this.<Meter>map(), map("timer", timer));
         }
 
         verify(statsD, times(2)).connect();
-        verify(statsD, times(1)).send("prefix.timer.count", "1", tags);
+        // Count and rate values always need to be send, but the not the duration values of the timer
+        verify(statsD, times(2)).send("prefix.timer.count", "1", tags);
+        verify(statsD, times(1)).send("prefix.timer.max", "123.00", tags);
         verify(statsD, times(2)).close();
     }
 
     @Test
-    public void doReportUnchangedTimersIfNotSkippingUnchangeMetrics() throws Exception {
-        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+    public void alwaysReportUnchangedTimersIfNotSkippingUnchangedTimerDurationMetrics() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedTimerDurationMetrics(false).build(statsD);
 
-        final Timer timer = mock(Timer.class);
+        Timer timer = mock(Timer.class);
+        Snapshot snapshot = mock(Snapshot.class);
+
         when(timer.getCount()).thenReturn(1L);
-        when(timer.getSnapshot()).thenReturn(mock(Snapshot.class));
+        when(timer.getSnapshot()).thenReturn(snapshot);
+        when(snapshot.getMax()).thenReturn(123000000l);
 
         for(int i = 0; i < 2; i++) {
             reporter.report(emptyGaugeMap, this.<Counter>map(), this.<Histogram>map(), this.<Meter>map(), map("timer", timer));
@@ -400,6 +400,7 @@ public class StatsDReporterTest {
 
         verify(statsD, times(2)).connect();
         verify(statsD, times(2)).send("prefix.timer.count", "1", tags);
+        verify(statsD, times(2)).send("prefix.timer.max", "123.00", tags);
         verify(statsD, times(2)).close();
     }
 

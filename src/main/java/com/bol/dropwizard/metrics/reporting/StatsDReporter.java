@@ -43,15 +43,25 @@ public class StatsDReporter extends ScheduledReporter {
     private final StatsD statsD;
     private final String prefix;
     private final String[] tags;
-    private final boolean skipUnchangedMetrics;
+    private final boolean skipUnchangedTimerDurationMetrics;
+    private final boolean skipUnchangedHistogramMetrics;
     private final Map<String, Long> metricCounters = new HashMap<String, Long>();
 
-    private StatsDReporter(final MetricRegistry registry, final StatsD statsD,
-            final String prefix, boolean skipUnchangedMetrics, final String[] tags, final TimeUnit rateUnit,
-            final TimeUnit durationUnit, final MetricFilter filter) {
+    private StatsDReporter(
+       MetricRegistry registry,
+       StatsD statsD,
+       String prefix,
+       String[] tags,
+       TimeUnit rateUnit,
+       TimeUnit durationUnit,
+       MetricFilter filter,
+       boolean skipUnchangedTimerDurationMetrics,
+       boolean skipUnchangedHistogramMetrics
+    ) {
         super(registry, "statsd-reporter", filter, rateUnit, durationUnit);
         this.statsD = statsD;
-        this.skipUnchangedMetrics = skipUnchangedMetrics;
+        this.skipUnchangedTimerDurationMetrics = skipUnchangedTimerDurationMetrics;
+        this.skipUnchangedHistogramMetrics = skipUnchangedHistogramMetrics;
         this.prefix = prefix;
         this.tags = tags;
     }
@@ -63,7 +73,7 @@ public class StatsDReporter extends ScheduledReporter {
      *            the registry to report
      * @return a {@link Builder} instance for a {@link StatsDReporter}
      */
-    public static Builder forRegistry(final MetricRegistry registry) {
+    public static Builder forRegistry(MetricRegistry registry) {
         return new Builder(registry);
     }
 
@@ -76,17 +86,19 @@ public class StatsDReporter extends ScheduledReporter {
     public static final class Builder {
         private final MetricRegistry registry;
         private String prefix;
-        private boolean skipUnchangedMetrics;
+        private boolean skipUnchangedTimerDurationMetrics;
+        private boolean skipUnchangedHistogramMetrics;
         private String[] tags;
         private TimeUnit rateUnit;
         private TimeUnit durationUnit;
         private MetricFilter filter;
 
-        private Builder(final MetricRegistry registry) {
+        private Builder(MetricRegistry registry) {
             this.registry = registry;
             this.prefix = null;
             this.tags = null;
-            this.skipUnchangedMetrics = true;
+            this.skipUnchangedTimerDurationMetrics = true;
+            this.skipUnchangedHistogramMetrics = true;
             this.rateUnit = TimeUnit.SECONDS;
             this.durationUnit = TimeUnit.MILLISECONDS;
             this.filter = MetricFilter.ALL;
@@ -99,7 +111,7 @@ public class StatsDReporter extends ScheduledReporter {
          *            the prefix for all metric names
          * @return {@code this}
          */
-        public Builder prefixedWith(@Nullable final String prefix) {
+        public Builder prefixedWith(@Nullable String prefix) {
             this.prefix = prefix;
             return this;
         }
@@ -109,7 +121,7 @@ public class StatsDReporter extends ScheduledReporter {
          * @param tags the tags for all metrics
          * @return {@code this}
          */
-        public Builder withTags(@Nullable final String... tags) {
+        public Builder withTags(@Nullable String... tags) {
             this.tags = tags;
             return this;
         }
@@ -121,7 +133,7 @@ public class StatsDReporter extends ScheduledReporter {
          *            a unit of time
          * @return {@code this}
          */
-        public Builder convertRatesTo(final TimeUnit rateUnit) {
+        public Builder convertRatesTo(TimeUnit rateUnit) {
             this.rateUnit = rateUnit;
             return this;
         }
@@ -133,7 +145,7 @@ public class StatsDReporter extends ScheduledReporter {
          *            a unit of time
          * @return {@code this}
          */
-        public Builder convertDurationsTo(final TimeUnit durationUnit) {
+        public Builder convertDurationsTo(TimeUnit durationUnit) {
             this.durationUnit = durationUnit;
             return this;
         }
@@ -145,36 +157,74 @@ public class StatsDReporter extends ScheduledReporter {
          *            a {@link MetricFilter}
          * @return {@code this}
          */
-        public Builder filter(final MetricFilter filter) {
+        public Builder filter(MetricFilter filter) {
             this.filter = filter;
             return this;
         }
 
         /**
-         * If unchanged metrics, since the last report, are to be skipped from being reported to StatsD.
+         * If unchanged timer durations and histogram metrics are to be skipped from being reported to StatsD.
          * <p>
-         * This will prevent Metrics from showing and old value in the StatsD backend (often Graphite) when nothing actually
+         * This will prevent Metrics from showing an old value in the StatsD backend (often Graphite) when nothing actually
          * changed.
          * <p>
-         * If true then skipping is applied for:
-         * <ul>
-         *     <li>Timer</li>
-         *     <li>Metered</li>
-         *     <li>Histogram</li>
-         * </ul>
+         * Counts and rates are always reported. You need counts and rates to always be reported because else you can't do the statistical calculations
+         * on them within the backend.
          * <p>
          * This reporter figures out which metrics should be skipped by keeping track of the count of this metrics.
-         * If count didn't change, and they will increase if a new value is recorded, then it won't send the metrics to StatsD.
+         * If the count didn't change, and they will increase if a new value is recorded, then it won't send the metrics to StatsD.
          * <p>
-         * The other metrics, gauge and counter, can't be skipped as we don't have a reliable way to detect if the value should be skipped.
-         * <p>
-         * Default: true
+         * This is actually a shortcut for calling the {@link #skipUnchangedHistogramMetrics} and {@link #skipUnchangedTimerDurationMetrics} with
+         * the same value.
          *
          * @param skipUnchangedMetrics If unchanged metrics are to be skipped from being reported to StatsD
          * @return {@code this}
          */
-        public Builder skipUnchangedMetrics(final boolean skipUnchangedMetrics) {
-            this.skipUnchangedMetrics = skipUnchangedMetrics;
+        public Builder skipUnchangedMetrics(boolean skipUnchangedMetrics) {
+            this.skipUnchangedTimerDurationMetrics = skipUnchangedMetrics;
+            this.skipUnchangedHistogramMetrics = skipUnchangedMetrics;
+            return this;
+        }
+
+        /**
+         * If unchanged timer duration metrics are to be skipped from being reported to StatsD.
+         * <p>
+         * This will prevent from showing an old value in the StatsD backend (often Graphite) when nothing actually changed.
+         * <p>
+         * Counts and rates are always reported. You need counts and rates to always be reported because else you can't do the statistical calculations
+         * on them within the backend.
+         * <p>
+         * This reporter figures out which metrics should be skipped by keeping track of the count of the timer.
+         * If the count didn't change, and they will increase if a new value is recorded, then it won't send the metrics to StatsD.
+         * <p>
+         * Default: true
+         *
+         * @param skipUnchangedTimerDurationMetrics If unchanged timer metrics should not be reported to StatsD
+         * @return {@code this}
+         */
+        public Builder skipUnchangedTimerDurationMetrics(boolean skipUnchangedTimerDurationMetrics) {
+            this.skipUnchangedTimerDurationMetrics = skipUnchangedTimerDurationMetrics;
+            return this;
+        }
+
+        /**
+         * If unchanged histogram metrics are to be skipped from being reported to StatsD.
+         * <p>
+         * This will prevent from showing an old value in the StatsD backend (often Graphite) when nothing actually changed.
+         * <p>
+         * The count is always reported. You need the counts to always be reported because else you can't do the statistical calculations
+         * on it within the backend.
+         * <p>
+         * This reporter figures out which metrics should be skipped by keeping track of the count of the histogram.
+         * If the count didn't change, and they will increase if a new value is recorded, then it won't send the metrics to StatsD.
+         * <p>
+         * Default: true
+         *
+         * @param skipUnchangedHistogramMetrics If unchanged histogram metrics should always be reported to StatsD
+         * @return {@code this}
+         */
+        public Builder skipUnchangedHistogramMetrics(boolean skipUnchangedHistogramMetrics) {
+            this.skipUnchangedHistogramMetrics = skipUnchangedHistogramMetrics;
             return this;
         }
 
@@ -188,7 +238,7 @@ public class StatsDReporter extends ScheduledReporter {
          *            the port of the StatsD server. This is typically 8125.
          * @return a {@link StatsDReporter}
          */
-        public StatsDReporter build(final String host, final int port) {
+        public StatsDReporter build(String host, int port) {
             return build(new StatsD(host, port));
         }
 
@@ -200,19 +250,21 @@ public class StatsDReporter extends ScheduledReporter {
          *            a {@link StatsD} client
          * @return a {@link StatsDReporter}
          */
-        public StatsDReporter build(final StatsD statsD) {
-            return new StatsDReporter(registry, statsD, prefix, skipUnchangedMetrics, tags, rateUnit, durationUnit, filter);
+        public StatsDReporter build(StatsD statsD) {
+            return new StatsDReporter(registry, statsD, prefix, tags, rateUnit, durationUnit, filter, skipUnchangedTimerDurationMetrics, skipUnchangedHistogramMetrics);
         }
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     // Metrics 3.0 interface specifies the raw Gauge type
-    public void report(final SortedMap<String, Gauge> gauges,
-            final SortedMap<String, Counter> counters,
-            final SortedMap<String, Histogram> histograms,
-            final SortedMap<String, Meter> meters,
-            final SortedMap<String, Timer> timers) {
+    public void report(
+        SortedMap<String, Gauge> gauges,
+        SortedMap<String, Counter> counters,
+        SortedMap<String, Histogram> histograms,
+        SortedMap<String, Meter> meters,
+        SortedMap<String, Timer> timers
+    ) {
 
         try {
             statsD.connect();
@@ -248,19 +300,16 @@ public class StatsDReporter extends ScheduledReporter {
     }
 
     private boolean metricChanged(String metricName, long currentCount) {
-        if(!skipUnchangedMetrics) {
-            return true;
-        }
         Long previousCount = metricCounters.get(metricName);
         metricCounters.put(metricName, currentCount);
 
         return previousCount == null || previousCount != currentCount;
     }
 
-    private void reportTimer(final String name, final Timer timer) {
+    private void reportTimer(String name, Timer timer) {
         final Snapshot snapshot = timer.getSnapshot();
 
-        if(metricChanged(name, timer.getCount())) {
+        if(!skipUnchangedTimerDurationMetrics || metricChanged(name, timer.getCount())) {
             statsD.send(prefix(name, "max"), formatNumber(convertDuration(snapshot.getMax())), tags);
             statsD.send(prefix(name, "mean"), formatNumber(convertDuration(snapshot.getMean())), tags);
             statsD.send(prefix(name, "min"), formatNumber(convertDuration(snapshot.getMin())), tags);
@@ -271,18 +320,15 @@ public class StatsDReporter extends ScheduledReporter {
             statsD.send(prefix(name, "p98"), formatNumber(convertDuration(snapshot.get98thPercentile())), tags);
             statsD.send(prefix(name, "p99"), formatNumber(convertDuration(snapshot.get99thPercentile())), tags);
             statsD.send(prefix(name, "p999"), formatNumber(convertDuration(snapshot.get999thPercentile())), tags);
-
-            reportMeteredChecked(name, timer);
         }
+        reportMeteredChecked(name, timer);
     }
 
-    private void reportMetered(final String name, final Metered meter) {
-        if(metricChanged(name, meter.getCount())) {
-            reportMeteredChecked(name, meter);
-        }
+    private void reportMetered(String name, Metered meter) {
+        reportMeteredChecked(name, meter);
     }
 
-    private void reportMeteredChecked(final String name, final Metered meter) {
+    private void reportMeteredChecked(String name, Metered meter) {
         statsD.send(prefix(name, "count"), formatNumber(meter.getCount()), tags);
         statsD.send(prefix(name, "m1_rate"), formatNumber(convertRate(meter.getOneMinuteRate())), tags);
         statsD.send(prefix(name, "m5_rate"), formatNumber(convertRate(meter.getFiveMinuteRate())), tags);
@@ -290,12 +336,13 @@ public class StatsDReporter extends ScheduledReporter {
         statsD.send(prefix(name, "mean_rate"), formatNumber(convertRate(meter.getMeanRate())), tags);
     }
 
-    private void reportHistogram(final String name, final Histogram histogram) {
+    private void reportHistogram(String name, Histogram histogram) {
         final Snapshot snapshot = histogram.getSnapshot();
         long count = histogram.getCount();
 
-        if(metricChanged(name, count)) {
-            statsD.send(prefix(name, "count"), formatNumber(count), tags);
+        statsD.send(prefix(name, "count"), formatNumber(count), tags);
+
+        if(!skipUnchangedHistogramMetrics || metricChanged(name, count)) {
             statsD.send(prefix(name, "max"), formatNumber(snapshot.getMax()), tags);
             statsD.send(prefix(name, "mean"), formatNumber(snapshot.getMean()), tags);
             statsD.send(prefix(name, "min"), formatNumber(snapshot.getMin()), tags);
@@ -309,13 +356,13 @@ public class StatsDReporter extends ScheduledReporter {
         }
     }
 
-    private void reportCounter(final String name, final Counter counter) {
+    private void reportCounter(String name, Counter counter) {
         statsD.send(prefix(name), formatNumber(counter.getCount()), tags);
     }
 
     @SuppressWarnings("rawtypes")
     // Metrics 3.0 passes us the raw Gauge type
-    private void reportGauge(final String name, final Gauge gauge) {
+    private void reportGauge(String name, Gauge gauge) {
         final String value = format(gauge.getValue());
         if (value != null) {
             statsD.send(prefix(name), value, tags);
@@ -323,7 +370,7 @@ public class StatsDReporter extends ScheduledReporter {
     }
 
     @Nullable
-    private String format(final Object o) {
+    private String format(Object o) {
         if (o instanceof Float) {
             return formatNumber(((Float) o).doubleValue());
         } else if (o instanceof Double) {
@@ -346,19 +393,19 @@ public class StatsDReporter extends ScheduledReporter {
         return null;
     }
 
-    private String prefix(final String... components) {
+    private String prefix(String... components) {
         return MetricRegistry.name(prefix, components);
     }
 
-    private String formatNumber(final BigInteger n) {
+    private String formatNumber(BigInteger n) {
         return String.valueOf(n);
     }
 
-    private String formatNumber(final long n) {
+    private String formatNumber(long n) {
         return Long.toString(n);
     }
 
-    private String formatNumber(final double v) {
+    private String formatNumber(double v) {
         return String.format(Locale.US, "%2.2f", v);
     }
 }
