@@ -20,6 +20,7 @@ import com.codahale.metrics.*;
 import org.junit.Test;
 import org.mockito.InOrder;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.SortedMap;
@@ -248,6 +249,17 @@ public class StatsDReporterTest {
     public void doReportUnchangedHistogramsIfSkippingUnchangedHistogramMetric() throws Exception {
         StatsDReporter reporter = reporterBuilder.skipUnchangedHistogramMetrics(false).build(statsD);
 
+        assertReportUnchangedHistogramMetrics(reporter);
+    }
+
+    @Test
+    public void doReportUnchangedHistogramsIfSkippingUnchangedMetric() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+
+        assertReportUnchangedHistogramMetrics(reporter);
+    }
+
+    private void assertReportUnchangedHistogramMetrics(StatsDReporter reporter) throws IOException {
         final Histogram histogram = mock(Histogram.class);
         Snapshot snapshot = mock(Snapshot.class);
 
@@ -384,9 +396,20 @@ public class StatsDReporterTest {
     }
 
     @Test
-    public void alwaysReportUnchangedTimersIfNotSkippingUnchangedTimerDurationMetrics() throws Exception {
+    public void doReportUnchangedTimersIfNotSkippingUnchangedTimerDurationMetrics() throws Exception {
         StatsDReporter reporter = reporterBuilder.skipUnchangedTimerDurationMetrics(false).build(statsD);
 
+        assertAlwaysReportUnchangedTimersMetrics(reporter);
+    }
+
+    @Test
+    public void doReportUnchangedTimersIfNotSkippingUnchangedMetrics() throws Exception {
+        StatsDReporter reporter = reporterBuilder.skipUnchangedMetrics(false).build(statsD);
+
+        assertAlwaysReportUnchangedTimersMetrics(reporter);
+    }
+
+    private void assertAlwaysReportUnchangedTimersMetrics(StatsDReporter reporter) throws IOException {
         Timer timer = mock(Timer.class);
         Snapshot snapshot = mock(Snapshot.class);
 
